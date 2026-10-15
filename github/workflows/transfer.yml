@@ -1,0 +1,31 @@
+name: Bulk Video Leecher to Vidara
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_links:
+        description: 'ضع روابط الفيديوهات هنا (افصل بينها بسطر جديد أو بفاصلة)'
+        required: true
+        type: string
+
+jobs:
+  transfer_videos:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Transfer Script
+        env:
+          VIDEO_URLS: ${{ inputs.video_links }}
+          VIDARA_API_KEY: ${{ secrets.VIDARA_API_KEY }}
+        run: python transfer.py
