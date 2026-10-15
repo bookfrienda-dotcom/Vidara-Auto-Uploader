@@ -18,7 +18,7 @@ def get_tiktok_data(url, index):
         if res.get('code') == 0:
             direct_url = res['data']['play']
             title = res['data'].get('title', f'TikTok_Video_{index}')
-            print(f"[{index}] تم استخراج الرابط بنجاح. (العنوان الأصلي: {clean_title(title)})")
+            print(f"[{index}] تم استخراج الرابط بنجاح. (العنوان: {clean_title(title)})")
             return direct_url, clean_title(title)
         else:
             print(f"[{index}] فشل استخراج بيانات تيك توك.")
@@ -42,7 +42,7 @@ def get_general_data(video_url, index):
             title = info.get('title', f'Video_{index}')
             
             if direct_url:
-                 print(f"[{index}] تم استخراج الرابط بنجاح. (العنوان الأصلي: {clean_title(title)})")
+                 print(f"[{index}] تم استخراج الرابط بنجاح. (العنوان: {clean_title(title)})")
                  return direct_url, clean_title(title)
             return None, None
     except Exception as e:
@@ -68,16 +68,22 @@ def rename_video(api_key, filecode, custom_title, index):
     except Exception as e:
         print(f"[{index}] خطأ أثناء الاتصال لتغيير الاسم: {e}")
 
-def remote_upload_to_vidara(direct_url, final_title, index):
+def remote_upload_to_vidara(direct_url, final_title, folder_id, index):
     api_key = os.environ.get('VIDARA_API_KEY')
     api_endpoint = "https://api.vidara.so/v1/upload/url"
     
     print(f"[{index}] جاري إرسال الرابط المباشر لـ Vidara ليقوم بسحبه...")
     try:
+        # تجهيز المتغيرات للرفع
         params = {
             'api_key': api_key,
             'url': direct_url
         }
+        
+        # إضافة الفولدر إذا تم تحديده
+        if folder_id:
+            params['fld_id'] = folder_id
+            print(f"[{index}] سيتم الرفع إلى المجلد رقم: {folder_id}")
         
         response = requests.get(api_endpoint, params=params).json()
         
@@ -97,7 +103,8 @@ def remote_upload_to_vidara(direct_url, final_title, index):
 
 if __name__ == "__main__":
     urls_input = os.environ.get('VIDEO_URLS', '')
-    prefix_input = os.environ.get('TITLE_PREFIX', '').strip() # استلام الجملة الإضافية
+    prefix_input = os.environ.get('TITLE_PREFIX', '').strip()
+    folder_id_input = os.environ.get('FOLDER_ID', '').strip() # استلام رقم المجلد
     
     if not urls_input.strip():
         print("لم يتم إدخال أي روابط!")
@@ -126,16 +133,15 @@ if __name__ == "__main__":
             direct_url, title = get_general_data(target_url, idx)
         
         if direct_url and title:
-            # دمج البادئة (Prefix) مع العنوان إذا كان المستخدم قد أدخل واحدة
             if prefix_input:
                 final_title = f"{prefix_input} {title}"
             else:
                 final_title = title
                 
-            # تقصير الاسم إلى 100 حرف تجنباً لأخطاء طول العنوان في سيرفر Vidara
             final_title = final_title[:100]
             
-            remote_upload_to_vidara(direct_url, final_title, idx)
+            # تمرير folder_id إلى دالة الرفع
+            remote_upload_to_vidara(direct_url, final_title, folder_id_input, idx)
             time.sleep(3) 
         else:
             print(f"[{idx}] تم تخطي الرابط لفشل استخراج البيانات.")
