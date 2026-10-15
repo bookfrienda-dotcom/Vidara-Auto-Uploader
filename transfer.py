@@ -68,22 +68,39 @@ def rename_video(api_key, filecode, custom_title, index):
     except Exception as e:
         print(f"[{index}] خطأ أثناء الاتصال لتغيير الاسم: {e}")
 
+def move_video(api_key, filecode, folder_id, index):
+    """دالة جديدة لنقل الفيديو إلى مجلد معين بعد السحب"""
+    if not folder_id:
+        return # إذا لم يضع المستخدم رقم المجلد، لا تفعل شيئاً
+        
+    move_endpoint = "https://api.vidara.so/v1/video/move"
+    print(f"[{index}] جاري نقل الفيديو إلى المجلد المخصص...")
+    
+    params = {
+        'api_key': api_key,
+        'filecode': filecode,
+        'fld_id': folder_id
+    }
+    
+    try:
+        res = requests.get(move_endpoint, params=params).json()
+        if res.get("status") == 200:
+            print(f"[{index}] تم نقل الفيديو للمجلد بنجاح!")
+        else:
+            print(f"[{index}] لم نتمكن من نقل الفيديو: {res}")
+    except Exception as e:
+        print(f"[{index}] خطأ أثناء الاتصال لنقل الفيديو: {e}")
+
 def remote_upload_to_vidara(direct_url, final_title, folder_id, index):
     api_key = os.environ.get('VIDARA_API_KEY')
     api_endpoint = "https://api.vidara.so/v1/upload/url"
     
     print(f"[{index}] جاري إرسال الرابط المباشر لـ Vidara ليقوم بسحبه...")
     try:
-        # تجهيز المتغيرات للرفع
         params = {
             'api_key': api_key,
             'url': direct_url
         }
-        
-        # إضافة الفولدر إذا تم تحديده
-        if folder_id:
-            params['fld_id'] = folder_id
-            print(f"[{index}] سيتم الرفع إلى المجلد رقم: {folder_id}")
         
         response = requests.get(api_endpoint, params=params).json()
         
@@ -92,8 +109,15 @@ def remote_upload_to_vidara(direct_url, final_title, folder_id, index):
              print(f"[{index}] تمت إضافة الفيديو لحسابك بنجاح! (Filecode: {filecode})")
              
              if filecode:
-                 time.sleep(1) 
+                 time.sleep(1) # تأخير بسيط لضمان وجود الفيديو في قاعدة البيانات
+                 
+                 # 1. إعادة التسمية
                  rename_video(api_key, filecode, final_title, index)
+                 
+                 # 2. النقل إلى المجلد (إذا تم إدخال رقم المجلد)
+                 if folder_id:
+                     time.sleep(1) # تأخير بسيط بين الأوامر لتجنب حظر الـ API
+                     move_video(api_key, filecode, folder_id, index)
                  
         else:
              print(f"[{index}] حدث خطأ من سيرفر Vidara: {response}")
@@ -104,7 +128,7 @@ def remote_upload_to_vidara(direct_url, final_title, folder_id, index):
 if __name__ == "__main__":
     urls_input = os.environ.get('VIDEO_URLS', '')
     prefix_input = os.environ.get('TITLE_PREFIX', '').strip()
-    folder_id_input = os.environ.get('FOLDER_ID', '').strip() # استلام رقم المجلد
+    folder_id_input = os.environ.get('FOLDER_ID', '').strip()
     
     if not urls_input.strip():
         print("لم يتم إدخال أي روابط!")
@@ -140,7 +164,6 @@ if __name__ == "__main__":
                 
             final_title = final_title[:100]
             
-            # تمرير folder_id إلى دالة الرفع
             remote_upload_to_vidara(direct_url, final_title, folder_id_input, idx)
             time.sleep(3) 
         else:
