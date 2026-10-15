@@ -11,6 +11,10 @@ on:
         description: 'الجملة أو الكلمة التي تريد إضافتها قبل اسم الفيديو (اختياري)'
         required: false
         type: string
+      start_serial:
+        description: 'رقم البداية للتسلسل (مثال: 1). سيتم إضافته بعد البادئة. (اختياري)'
+        required: false
+        type: string
       folder_id:
         description: 'رقم المجلد (Folder ID) للرفع إليه. (اتركه فارغاً للرئيسي)'
         required: false
@@ -37,6 +41,7 @@ jobs:
           VIDEO_URLS: ${{ inputs.video_links }}
           VIDARA_API_KEY: ${{ secrets.VIDARA_API_KEY }}
           TITLE_PREFIX: ${{ inputs.title_prefix }}
+          START_SERIAL: ${{ inputs.start_serial }}
           FOLDER_ID: ${{ inputs.folder_id }}
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}
