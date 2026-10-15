@@ -7,6 +7,10 @@ on:
         description: 'ضع روابط الفيديوهات هنا (افصل بينها بسطر جديد أو بفاصلة)'
         required: true
         type: string
+      title_prefix:
+        description: 'الجملة أو الكلمة التي تريد إضافتها قبل اسم الفيديو (اختياري)'
+        required: false
+        type: string
 
 jobs:
   transfer_videos:
@@ -28,4 +32,5 @@ jobs:
         env:
           VIDEO_URLS: ${{ inputs.video_links }}
           VIDARA_API_KEY: ${{ secrets.VIDARA_API_KEY }}
+          TITLE_PREFIX: ${{ inputs.title_prefix }}
         run: python transfer.py
