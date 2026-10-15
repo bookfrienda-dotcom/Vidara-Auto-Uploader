@@ -58,8 +58,6 @@ def local_upload_to_vidara(file_path, final_title, folder_id, index):
             raw_filecode = response.get('filecode')
             
             if raw_filecode:
-                # --- الإصلاح العبقري هنا: استخراج الكود الصافي ---
-                # إذا كان المرجع عبارة عن رابط كامل، نقص الجزء الأخير منه فقط
                 if "vidara.to/e/" in raw_filecode:
                     clean_filecode = raw_filecode.split("/")[-1]
                 else:
@@ -67,7 +65,7 @@ def local_upload_to_vidara(file_path, final_title, folder_id, index):
                     
                 print(f"[{index}] تم الرفع بنجاح! (الكود الصافي: {clean_filecode})")
                 
-                time.sleep(2) # تأخير لضمان تسجيل الملف
+                time.sleep(2)
                 rename_video(api_key, clean_filecode, final_title, index)
                 
                 if folder_id:
@@ -90,6 +88,12 @@ async def main():
     urls_input = os.environ.get('VIDEO_URLS', '')
     prefix_input = os.environ.get('TITLE_PREFIX', '').strip()
     folder_id_input = os.environ.get('FOLDER_ID', '').strip()
+    
+    # --- الجديد: استلام رقم البداية للتسلسل ---
+    start_serial_str = os.environ.get('START_SERIAL', '').strip()
+    current_serial = None
+    if start_serial_str.isdigit():
+        current_serial = int(start_serial_str)
 
     urls = re.findall(r'(https?://t\.me/[^\s,]+)', urls_input)
     urls = list(dict.fromkeys(urls))
@@ -126,7 +130,21 @@ async def main():
                 continue
                 
             caption = message.text[:50] if message.text else f"TG_Video_{msg_id}"
-            title = f"{prefix_input} {caption}".strip() if prefix_input else caption
+            
+            # --- الجديد: دمج البادئة والتسلسل والعنوان الأصلي ---
+            title_parts = []
+            if prefix_input:
+                title_parts.append(prefix_input)
+                
+            if current_serial is not None:
+                # وضع التسلسل بصيغة 01, 02 إلخ
+                title_parts.append(f"{current_serial:02d}")
+                current_serial += 1 # زيادة الرقم للفيديو القادم
+                
+            title_parts.append(caption)
+            
+            # دمج الأجزاء بمسافة أو علامة شرطة (اخترنا مسافة - )
+            title = " - ".join(title_parts).strip()
             final_title = clean_title(title)
             
             print(f"[{idx}] جاري تحميل الفيديو إلى سيرفر جيت هب (قد يستغرق بعض الوقت حسب حجم الفيديو)...")
