@@ -1,24 +1,10 @@
+
+
 name: 🔴 Universal Uploader (YouTube, FB, ThisVid)
 
-on:
-workflow_dispatch:
-inputs:
-video_links:
-description: 'ضع روابط الفيديوهات هنا (افصل بينها بسطر جديد أو بفاصلة)'
-required: true
-type: string
-title_prefix:
-description: 'الجملة أو الكلمة التي تريد إضافتها قبل اسم الفيديو (اختياري)'
-required: false
-type: string
-start_serial:
-description: 'رقم البداية للتسلسل (مثال: 1). سيتم إضافته بعد البادئة. (اختياري)'
-required: false
-type: string
-folder_id:
-description: 'رقم المجلد (Folder ID) للرفع إليه. (اتركه فارغاً للرئيسي)'
-required: false
-type: string
+
+
+n: workflow_dispatch: inputs: video_links: description: 'ضع روابط الفيديوهات هنا' required: true type: string title_prefix: description: 'البادئة قبل اسم الفيديو (اختياري)' required: false type: string start_serial: description: 'رقم بداية التسلسل (اختياري)' required: false type: string folder_id: description: 'رقم المجلد في Vidara (اختياري)' required: false type: string
 
 jobs:
 transfer_videos:
