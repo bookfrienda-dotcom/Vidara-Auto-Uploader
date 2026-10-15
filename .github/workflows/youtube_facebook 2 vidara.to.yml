@@ -1,5 +1,4 @@
-name: Universal Video Uploader
-
+name: 🔴|🔴 Universal Uploader (YouTube, FB, ThisVid)
 on:
   workflow_dispatch:
     inputs:
