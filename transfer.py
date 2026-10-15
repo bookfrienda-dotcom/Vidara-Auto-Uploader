@@ -4,56 +4,82 @@ import yt_dlp
 import re
 import time
 
-def get_tiktok_direct_url(url, index):
-    """استخراج الرابط المباشر لتيك توك عبر API مجاني (بدون تحميله محلياً)"""
-    print(f"[{index}] جاري استخراج الرابط المباشر لتيك توك...")
+def clean_title(title):
+    """تنظيف عنوان الفيديو من الرموز التي قد تسبب مشاكل"""
+    if not title:
+        return "Unknown_Video"
+    # إزالة الهاشتاجات والرموز الغريبة
+    clean = re.sub(r'[\\/*?:"<>|#]', "", title)
+    return clean.strip()[:100] # تقصير الاسم إلى 100 حرف كحد أقصى لتجنب أخطاء السيرفر
+
+def get_tiktok_data(url, index):
+    """استخراج الرابط المباشر والعنوان الأصلي لتيك توك"""
+    print(f"[{index}] جاري استخراج بيانات تيك توك...")
     api_url = f"https://www.tikwm.com/api/?url={url}"
     try:
         res = requests.get(api_url).json()
         if res.get('code') == 0:
             direct_url = res['data']['play']
-            print(f"[{index}] تم استخراج الرابط بنجاح.")
-            return direct_url
+            title = res['data'].get('title', f'TikTok_Video_{index}')
+            print(f"[{index}] تم استخراج الرابط بنجاح. (العنوان: {clean_title(title)})")
+            return direct_url, clean_title(title)
         else:
-            print(f"[{index}] فشل استخراج الرابط المباشر.")
-            return None
+            print(f"[{index}] فشل استخراج بيانات تيك توك.")
+            return None, None
     except Exception as e:
         print(f"[{index}] حدث خطأ في اتصال التيك توك: {e}")
-        return None
+        return None, None
 
-def get_general_direct_url(video_url, index):
-    """استخراج الرابط المباشر لباقي المواقع باستخدام yt-dlp (بدون تحميل)"""
-    print(f"[{index}] جاري استخراج الرابط المباشر للموقع...")
+def get_general_data(video_url, index):
+    """استخراج الرابط المباشر والعنوان الأصلي لباقي المواقع باستخدام yt-dlp"""
+    print(f"[{index}] جاري استخراج البيانات باستخدام yt-dlp...")
     ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': 'best',
         'quiet': True,
         'no_warnings': True,
-        'simulate': True, # لا تقم بالتحميل، فقط اعطني البيانات
-        'forceurl': True, # اجبره على طباعة الرابط المباشر
+        'simulate': True, # لا تقم بالتحميل
     }
-
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=False)
             direct_url = info.get('url')
+            title = info.get('title', f'Video_{index}')
+            
             if direct_url:
-                 print(f"[{index}] تم استخراج الرابط بنجاح.")
-                 return direct_url
-            return None
+                 print(f"[{index}] تم استخراج الرابط بنجاح. (العنوان: {clean_title(title)})")
+                 return direct_url, clean_title(title)
+            return None, None
     except Exception as e:
         print(f"[{index}] حدث خطأ أثناء استخراج الرابط: {e}")
-        return None
+        return None, None
 
-def remote_upload_to_vidara(direct_url, index):
-    """إرسال أمر لـ Vidara ليسحب الفيديو مباشرة من الرابط"""
-    api_key = os.environ.get('VIDARA_API_KEY')
+def rename_video(api_key, filecode, custom_title, index):
+    """دالة مخصصة لإعادة تسمية الفيديو عبر Vidara API"""
+    rename_endpoint = "https://api.vidara.so/v1/video/rename"
+    print(f"[{index}] جاري إعادة تسمية الفيديو في حسابك إلى: {custom_title} ...")
     
-    # استخدام أمر Upload URL من الدوكمنتيشن
-    api_endpoint = f"https://api.vidara.so/v1/upload/url"
+    params = {
+        'api_key': api_key,
+        'filecode': filecode,
+        'title': custom_title
+    }
+    
+    try:
+        res = requests.get(rename_endpoint, params=params).json()
+        if res.get("status") == 200:
+            print(f"[{index}] تمت إعادة التسمية بنجاح!")
+        else:
+            print(f"[{index}] لم نتمكن من إعادة التسمية: {res}")
+    except Exception as e:
+        print(f"[{index}] خطأ أثناء الاتصال لتغيير الاسم: {e}")
+
+def remote_upload_to_vidara(direct_url, custom_title, index):
+    """إرسال أمر لـ Vidara لسحب الفيديو وتغيير اسمه"""
+    api_key = os.environ.get('VIDARA_API_KEY')
+    api_endpoint = "https://api.vidara.so/v1/upload/url"
     
     print(f"[{index}] جاري إرسال الرابط المباشر لـ Vidara ليقوم بسحبه...")
     try:
-        # الدوكمنتيشن يقول إنه طلب GET
         params = {
             'api_key': api_key,
             'url': direct_url
@@ -62,8 +88,14 @@ def remote_upload_to_vidara(direct_url, index):
         response = requests.get(api_endpoint, params=params).json()
         
         if response.get("status") == 200:
-             print(f"[{index}] تمت إضافة الفيديو لحسابك بنجاح!")
-             print(f"[{index}] التفاصيل: {response.get('data')}")
+             filecode = response.get('data', {}).get('filecode')
+             print(f"[{index}] تمت إضافة الفيديو لحسابك بنجاح! (Filecode: {filecode})")
+             
+             # بمجرد نجاح السحب، نقوم فوراً بمنادات دالة تغيير الاسم
+             if filecode:
+                 time.sleep(1) # تأخير بسيط جداً لضمان تسجيل الملف في قاعدة بياناتهم
+                 rename_video(api_key, filecode, custom_title, index)
+                 
         else:
              print(f"[{index}] حدث خطأ من سيرفر Vidara: {response}")
              
@@ -90,19 +122,20 @@ if __name__ == "__main__":
         print(f"\n[{idx}] معالجة الرابط: {target_url}")
         
         direct_url = None
-        if 'tiktok.com' in target_url.lower():
-            direct_url = get_tiktok_direct_url(target_url, idx)
-            # إذا فشل tikwm، جرب yt-dlp
-            if not direct_url:
-                direct_url = get_general_direct_url(target_url, idx)
-        else:
-            direct_url = get_general_direct_url(target_url, idx)
+        title = None
         
-        if direct_url:
-            remote_upload_to_vidara(direct_url, idx)
-            time.sleep(2) # تأخير لتجنب الضغط على الـ API
+        if 'tiktok.com' in target_url.lower():
+            direct_url, title = get_tiktok_data(target_url, idx)
+            if not direct_url: # حل بديل في حال فشل الأداة الأولى
+                direct_url, title = get_general_data(target_url, idx)
         else:
-            print(f"[{idx}] تم تخطي الرابط لفشل استخراج الرابط المباشر.")
+            direct_url, title = get_general_data(target_url, idx)
+        
+        if direct_url and title:
+            remote_upload_to_vidara(direct_url, title, idx)
+            time.sleep(3) # تأخير لتجنب الضغط على السيرفرات
+        else:
+            print(f"[{idx}] تم تخطي الرابط لفشل استخراج البيانات.")
             
         print("="*40)
         
