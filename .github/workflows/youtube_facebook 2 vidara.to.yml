@@ -1,46 +1,46 @@
 name: Universal Video Uploader
 
 on:
-workflow_dispatch:
-inputs:
-video_links:
-description: 'Enter video URLs (separated by new line or comma)'
-required: true
-type: string
-title_prefix:
-description: 'Prefix text to add before video title (optional)'
-required: false
-type: string
-start_serial:
-description: 'Starting serial number, e.g. 1 (optional)'
-required: false
-type: string
-folder_id:
-description: 'Vidara Folder ID (optional, leave empty for root)'
-required: false
-type: string
+  workflow_dispatch:
+    inputs:
+      video_links:
+        description: 'Video links (separated by new line or space)'
+        required: true
+        type: string
+      title_prefix:
+        description: 'Title prefix (optional)'
+        required: false
+        type: string
+      start_serial:
+        description: 'Starting serial number (e.g. 1) (optional)'
+        required: false
+        type: string
+      folder_id:
+        description: 'Vidara Folder ID (leave empty for main)'
+        required: false
+        type: string
 
 jobs:
-transfer_videos:
-runs-on: ubuntu-latest
+  transfer_videos:
+    runs-on: ubuntu-latest
 
-steps:
-  - name: Checkout Repository
-    uses: actions/checkout@v3
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-  - name: Setup Python
-    uses: actions/setup-python@v4
-    with:
-      python-version: '3.11'
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-  - name: Install Dependencies
-    run: pip install -r requirements.txt
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
 
-  - name: Run Transfer Script
-    env:
-      VIDEO_URLS: ${{ inputs.video_links }}
-      VIDARA_API_KEY: ${{ secrets.VIDARA_API_KEY }}
-      TITLE_PREFIX: ${{ inputs.title_prefix }}
-      START_SERIAL: ${{ inputs.start_serial }}
-      FOLDER_ID: ${{ inputs.folder_id }}
-    run: python transfer.py
+      - name: Run Transfer Script
+        env:
+          VIDEO_URLS: ${{ inputs.video_links }}
+          VIDARA_API_KEY: ${{ secrets.VIDARA_API_KEY }}
+          TITLE_PREFIX: ${{ inputs.title_prefix }}
+          START_SERIAL: ${{ inputs.start_serial }}
+          FOLDER_ID: ${{ inputs.folder_id }}
+        run: python transfer.py
