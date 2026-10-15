@@ -1,10 +1,24 @@
+name: Universal Video Uploader
 
-
-name: 🔴 Universal Uploader (YouTube, FB, ThisVid)
-
-
-
-n: workflow_dispatch: inputs: video_links: description: 'ضع روابط الفيديوهات هنا' required: true type: string title_prefix: description: 'البادئة قبل اسم الفيديو (اختياري)' required: false type: string start_serial: description: 'رقم بداية التسلسل (اختياري)' required: false type: string folder_id: description: 'رقم المجلد في Vidara (اختياري)' required: false type: string
+on:
+workflow_dispatch:
+inputs:
+video_links:
+description: 'Enter video URLs (separated by new line or comma)'
+required: true
+type: string
+title_prefix:
+description: 'Prefix text to add before video title (optional)'
+required: false
+type: string
+start_serial:
+description: 'Starting serial number, e.g. 1 (optional)'
+required: false
+type: string
+folder_id:
+description: 'Vidara Folder ID (optional, leave empty for root)'
+required: false
+type: string
 
 jobs:
 transfer_videos:
