@@ -5,15 +5,12 @@ import re
 import time
 
 def clean_title(title):
-    """تنظيف عنوان الفيديو من الرموز التي قد تسبب مشاكل"""
     if not title:
         return "Unknown_Video"
-    # إزالة الهاشتاجات والرموز الغريبة
     clean = re.sub(r'[\\/*?:"<>|#]', "", title)
-    return clean.strip()[:100] # تقصير الاسم إلى 100 حرف كحد أقصى لتجنب أخطاء السيرفر
+    return clean.strip()
 
 def get_tiktok_data(url, index):
-    """استخراج الرابط المباشر والعنوان الأصلي لتيك توك"""
     print(f"[{index}] جاري استخراج بيانات تيك توك...")
     api_url = f"https://www.tikwm.com/api/?url={url}"
     try:
@@ -21,7 +18,7 @@ def get_tiktok_data(url, index):
         if res.get('code') == 0:
             direct_url = res['data']['play']
             title = res['data'].get('title', f'TikTok_Video_{index}')
-            print(f"[{index}] تم استخراج الرابط بنجاح. (العنوان: {clean_title(title)})")
+            print(f"[{index}] تم استخراج الرابط بنجاح. (العنوان الأصلي: {clean_title(title)})")
             return direct_url, clean_title(title)
         else:
             print(f"[{index}] فشل استخراج بيانات تيك توك.")
@@ -31,13 +28,12 @@ def get_tiktok_data(url, index):
         return None, None
 
 def get_general_data(video_url, index):
-    """استخراج الرابط المباشر والعنوان الأصلي لباقي المواقع باستخدام yt-dlp"""
     print(f"[{index}] جاري استخراج البيانات باستخدام yt-dlp...")
     ydl_opts = {
         'format': 'best',
         'quiet': True,
         'no_warnings': True,
-        'simulate': True, # لا تقم بالتحميل
+        'simulate': True, 
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -46,7 +42,7 @@ def get_general_data(video_url, index):
             title = info.get('title', f'Video_{index}')
             
             if direct_url:
-                 print(f"[{index}] تم استخراج الرابط بنجاح. (العنوان: {clean_title(title)})")
+                 print(f"[{index}] تم استخراج الرابط بنجاح. (العنوان الأصلي: {clean_title(title)})")
                  return direct_url, clean_title(title)
             return None, None
     except Exception as e:
@@ -54,7 +50,6 @@ def get_general_data(video_url, index):
         return None, None
 
 def rename_video(api_key, filecode, custom_title, index):
-    """دالة مخصصة لإعادة تسمية الفيديو عبر Vidara API"""
     rename_endpoint = "https://api.vidara.so/v1/video/rename"
     print(f"[{index}] جاري إعادة تسمية الفيديو في حسابك إلى: {custom_title} ...")
     
@@ -73,8 +68,7 @@ def rename_video(api_key, filecode, custom_title, index):
     except Exception as e:
         print(f"[{index}] خطأ أثناء الاتصال لتغيير الاسم: {e}")
 
-def remote_upload_to_vidara(direct_url, custom_title, index):
-    """إرسال أمر لـ Vidara لسحب الفيديو وتغيير اسمه"""
+def remote_upload_to_vidara(direct_url, final_title, index):
     api_key = os.environ.get('VIDARA_API_KEY')
     api_endpoint = "https://api.vidara.so/v1/upload/url"
     
@@ -91,10 +85,9 @@ def remote_upload_to_vidara(direct_url, custom_title, index):
              filecode = response.get('data', {}).get('filecode')
              print(f"[{index}] تمت إضافة الفيديو لحسابك بنجاح! (Filecode: {filecode})")
              
-             # بمجرد نجاح السحب، نقوم فوراً بمنادات دالة تغيير الاسم
              if filecode:
-                 time.sleep(1) # تأخير بسيط جداً لضمان تسجيل الملف في قاعدة بياناتهم
-                 rename_video(api_key, filecode, custom_title, index)
+                 time.sleep(1) 
+                 rename_video(api_key, filecode, final_title, index)
                  
         else:
              print(f"[{index}] حدث خطأ من سيرفر Vidara: {response}")
@@ -104,6 +97,7 @@ def remote_upload_to_vidara(direct_url, custom_title, index):
 
 if __name__ == "__main__":
     urls_input = os.environ.get('VIDEO_URLS', '')
+    prefix_input = os.environ.get('TITLE_PREFIX', '').strip() # استلام الجملة الإضافية
     
     if not urls_input.strip():
         print("لم يتم إدخال أي روابط!")
@@ -126,14 +120,23 @@ if __name__ == "__main__":
         
         if 'tiktok.com' in target_url.lower():
             direct_url, title = get_tiktok_data(target_url, idx)
-            if not direct_url: # حل بديل في حال فشل الأداة الأولى
+            if not direct_url: 
                 direct_url, title = get_general_data(target_url, idx)
         else:
             direct_url, title = get_general_data(target_url, idx)
         
         if direct_url and title:
-            remote_upload_to_vidara(direct_url, title, idx)
-            time.sleep(3) # تأخير لتجنب الضغط على السيرفرات
+            # دمج البادئة (Prefix) مع العنوان إذا كان المستخدم قد أدخل واحدة
+            if prefix_input:
+                final_title = f"{prefix_input} {title}"
+            else:
+                final_title = title
+                
+            # تقصير الاسم إلى 100 حرف تجنباً لأخطاء طول العنوان في سيرفر Vidara
+            final_title = final_title[:100]
+            
+            remote_upload_to_vidara(direct_url, final_title, idx)
+            time.sleep(3) 
         else:
             print(f"[{idx}] تم تخطي الرابط لفشل استخراج البيانات.")
             
