@@ -28,14 +28,23 @@ def local_upload_to_vidara(file_path, final_title, folder_id, index):
     api_key = os.environ.get('VIDARA_API_KEY')
     print(f"[{index}] جاري طلب سيرفر الرفع من Vidara...")
     try:
-        res = requests.get(f"https://api.vidara.so/v1/upload/server?key={api_key}").json()
-        upload_api_url = res.get("result", {}).get("upload_server") or res.get("result", {}).get("url")
+        # الإصلاح: استخدام api_key بشكل صحيح والتحقق من الاستجابة
+        res = requests.get(f"https://api.vidara.so/v1/upload/server?api_key={api_key}").json()
         
-        if not upload_api_url: return False
+        if res.get("status") != 200 or res.get("result") is None:
+            print(f"[{index}] خطأ في الاستجابة من سيرفر Vidara: {res}")
+            return False
+            
+        upload_api_url = res["result"].get("upload_server") or res["result"].get("url")
+        
+        if not upload_api_url:
+            print(f"[{index}] لم يتم إرجاع رابط رفع صحيح.")
+            return False
         
         print(f"[{index}] جاري رفع الفيديو إلى Vidara...")
         with open(file_path, 'rb') as f:
-            response = requests.post(upload_api_url, files={'file': f}, data={'key': api_key}).json()
+            # الإصلاح: التأكد من إرسال المتغير api_key في الـ data لربطه بحسابك
+            response = requests.post(upload_api_url, files={'file': f}, data={'api_key': api_key}).json()
             filecode = response.get('filecode')
             if filecode:
                 print(f"[{index}] تم الرفع بنجاح! (Filecode: {filecode})")
@@ -45,6 +54,8 @@ def local_upload_to_vidara(file_path, final_title, folder_id, index):
                     time.sleep(1)
                     move_video(api_key, filecode, folder_id, index)
                 return True
+            else:
+                print(f"[{index}] لم نتمكن من الحصول على Filecode: {response}")
     except Exception as e:
         print(f"[{index}] خطأ أثناء الرفع لـ Vidara: {e}")
     return False
@@ -68,14 +79,12 @@ async def main():
 
     print(f"تم العثور على ({len(urls)}) روابط تليجرام.\n" + "="*40)
     
-    # تسجيل الدخول كـ Userbot
     client = TelegramClient(StringSession(session_str), api_id, api_hash)
     await client.start()
     
     for idx, url in enumerate(urls, start=1):
         print(f"\n[{idx}] معالجة الرابط: {url}")
         
-        # استخراج اسم القناة ورقم الرسالة من الرابط
         match = re.search(r't\.me/(?:c/)?([^/]+)/(\d+)', url)
         if not match:
             print(f"[{idx}] صيغة الرابط غير مدعومة.")
@@ -84,7 +93,6 @@ async def main():
         chat_id_or_username = match.group(1)
         msg_id = int(match.group(2))
         
-        # دعم القنوات الخاصة
         if chat_id_or_username.isdigit():
             chat_id_or_username = int('-100' + chat_id_or_username)
             
@@ -93,10 +101,9 @@ async def main():
             message = await client.get_messages(chat_id_or_username, ids=msg_id)
             
             if not message or not message.media:
-                print(f"[{index}] تم التخطي: لا يوجد فيديو في هذا الرابط.")
+                print(f"[{idx}] تم التخطي: لا يوجد فيديو في هذا الرابط.")
                 continue
                 
-            # إعداد العنوان (يأخذ من الكابشن إذا وُجد)
             caption = message.text[:50] if message.text else f"TG_Video_{msg_id}"
             title = f"{prefix_input} {caption}".strip() if prefix_input else caption
             final_title = clean_title(title)
@@ -107,9 +114,7 @@ async def main():
             
             if os.path.exists(local_file):
                 print(f"[{idx}] اكتمل التحميل المحلي.")
-                # رفعه لـ Vidara
                 local_upload_to_vidara(local_file, final_title, folder_id_input, idx)
-                # تنظيف السيرفر
                 os.remove(local_file)
                 print(f"[{idx}] تم مسح الملف المؤقت.")
             else:
