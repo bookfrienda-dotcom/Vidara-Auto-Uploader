@@ -2,11 +2,45 @@ import os
 import requests
 import yt_dlp
 import glob
+import re
+
+def download_tiktok_via_api(url, index):
+    """دالة مخصصة لتنزيل تيك توك لتخطي الحظر وبدون علامة مائية"""
+    print(f"[{index}] جاري استخراج رابط تيك توك المباشر لتخطي الحظر...")
+    # استخدام API مجاني لاستخراج الرابط المباشر
+    api_url = f"https://www.tikwm.com/api/?url={url}"
+    try:
+        res = requests.get(api_url).json()
+        if res.get('code') == 0:
+            video_url = res['data']['play']
+            print(f"[{index}] تم استخراج الرابط بنجاح، جاري التحميل...")
+            
+            video_res = requests.get(video_url, stream=True)
+            local_filename = f"downloaded_video_{index}.mp4"
+            
+            with open(local_filename, 'wb') as f:
+                for chunk in video_res.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            print(f"[{index}] تمت عملية التحميل بنجاح.")
+            return local_filename
+        else:
+            print(f"[{index}] فشل استخراج الرابط المباشر من تيك توك.")
+            return None
+    except Exception as e:
+        print(f"[{index}] حدث خطأ في اتصال التيك توك: {e}")
+        return None
 
 def download_video(video_url, index):
     print(f"\n[{index}] جاري بدء التحميل للرابط: {video_url}")
     
-    # إعدادات yt-dlp للتحميل
+    # إذا كان الرابط من تيك توك، نستخدم الدالة المخصصة لتجنب الحظر
+    if 'tiktok.com' in video_url.lower():
+        file_path = download_tiktok_via_api(video_url, index)
+        if file_path:
+            return file_path
+        print(f"[{index}] سنحاول باستخدام yt-dlp كحل بديل...")
+
+    # إعدادات yt-dlp لباقي المواقع (يوتيوب، فيسبوك، إلخ)
     out_tmpl = f'downloaded_video_{index}.%(ext)s'
     ydl_opts = {
         'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
@@ -19,7 +53,6 @@ def download_video(video_url, index):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
             
-        # البحث عن الملف الذي تم تحميله
         downloaded_files = glob.glob(f"downloaded_video_{index}.*")
         if downloaded_files:
             print(f"[{index}] تمت عملية التحميل بنجاح.")
@@ -32,50 +65,51 @@ def download_video(video_url, index):
 
 def upload_to_vidara(file_path, index):
     api_key = os.environ.get('VIDARA_API_KEY')
-    
-    # --- تنبيه: راجع الرابط أدناه بناءً على صفحة API Docs في Vidara ---
-    # أغلب مواقع الرفع تستخدم هذا الرابط المباشر للـ API
     upload_api_url = "https://vidara.to/api/upload" 
     
-    print(f"[{index}] جاري رفع الملف ({file_path}) إلى موقع Vidara...")
+    print(f"[{index}] جاري رفع الملف إلى موقع Vidara...")
     try:
         with open(file_path, 'rb') as f:
-            # المتغيرات المطلوبة للرفع (file للـ فيديو، و key لمفتاح حسابك)
             files = {'file': f}
             data = {'key': api_key} 
             
             response = requests.post(upload_api_url, files=files, data=data)
             
-            print(f"[{index}] نتيجة الرفع:")
+            print(f"[{index}] نتيجة الرفع السحابي:")
             print(response.text)
             
     except Exception as e:
         print(f"[{index}] حدث خطأ أثناء الرفع: {e}")
 
 if __name__ == "__main__":
-    # استلام الروابط من GitHub Actions
     urls_input = os.environ.get('VIDEO_URLS', '')
     
     if not urls_input.strip():
         print("لم يتم إدخال أي روابط!")
         exit(1)
         
-    # تنظيف الروابط وفصلها سواء تم إدخالها بفاصلة (,) أو كل رابط في سطر
-    urls = [url.strip() for url in urls_input.replace(',', '\n').split('\n') if url.strip()]
+    # الحل الذكي: استخراج جميع الروابط الصالحة برمجياً مهما كان النص المدخل متداخلاً
+    urls = re.findall(r'(https?://[^\s,]+)', urls_input)
     
-    print(f"تم العثور على {len(urls)} روابط للعمل عليها.\n" + "="*40)
+    # تنظيف القائمة من الروابط المكررة (إن وجدت)
+    urls = list(dict.fromkeys(urls))
     
-    # المرور على كل رابط بالترتيب: تحميل -> رفع -> حذف من جيت هب
+    if not urls:
+        print("لم يتم التعرف على أي روابط صالحة في الإدخال!")
+        exit(1)
+        
+    print(f"تم العثور على ({len(urls)}) روابط بنجاح.\n" + "="*40)
+    
     for idx, target_url in enumerate(urls, start=1):
         local_file = download_video(target_url, idx)
         
         if local_file:
             upload_to_vidara(local_file, idx)
-            os.remove(local_file) # حذف الفيديو لتفريغ المساحة للرابط الذي يليه
-            print(f"[{idx}] تم حذف الملف المؤقت من سيرفر جيت هب.")
+            os.remove(local_file) 
+            print(f"[{idx}] تم حذف الملف من السيرفر بنجاح.")
         else:
-            print(f"[{idx}] تم تخطي عملية الرفع لأن التحميل فشل للرابط: {target_url}")
+            print(f"[{idx}] تم تخطي الرفع لفشل التحميل.")
             
         print("="*40)
         
-    print("تم الانتهاء من جميع الروابط بنجاح!")
+    print("اكتملت المهمة بالكامل!")
