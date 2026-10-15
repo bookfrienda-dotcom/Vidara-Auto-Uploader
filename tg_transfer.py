@@ -14,21 +14,32 @@ def clean_title(title):
 
 # --- دوال Vidara للرفع المحلي ---
 def rename_video(api_key, filecode, custom_title, index):
+    print(f"[{index}] جاري إعادة تسمية الفيديو إلى: {custom_title} ...")
     try:
-        requests.get("https://api.vidara.so/v1/video/rename", params={'api_key': api_key, 'filecode': filecode, 'title': custom_title})
-    except: pass
+        res = requests.get("https://api.vidara.so/v1/video/rename", params={'api_key': api_key, 'filecode': filecode, 'title': custom_title}).json()
+        if res.get("status") == 200:
+             print(f"[{index}] تمت إعادة التسمية بنجاح.")
+        else:
+             print(f"[{index}] فشل إعادة التسمية: {res}")
+    except Exception as e: 
+        print(f"[{index}] خطأ أثناء التسمية: {e}")
 
 def move_video(api_key, filecode, folder_id, index):
     if not folder_id: return
+    print(f"[{index}] جاري نقل الفيديو إلى المجلد المخصص...")
     try:
-        requests.get("https://api.vidara.so/v1/video/move", params={'api_key': api_key, 'filecode': filecode, 'fld_id': folder_id})
-    except: pass
+        res = requests.get("https://api.vidara.so/v1/video/move", params={'api_key': api_key, 'filecode': filecode, 'fld_id': folder_id}).json()
+        if res.get("status") == 200:
+             print(f"[{index}] تم النقل بنجاح.")
+        else:
+             print(f"[{index}] فشل النقل: {res}")
+    except Exception as e: 
+        print(f"[{index}] خطأ أثناء النقل: {e}")
 
 def local_upload_to_vidara(file_path, final_title, folder_id, index):
     api_key = os.environ.get('VIDARA_API_KEY')
     print(f"[{index}] جاري طلب سيرفر الرفع من Vidara...")
     try:
-        # الإصلاح: استخدام api_key بشكل صحيح والتحقق من الاستجابة
         res = requests.get(f"https://api.vidara.so/v1/upload/server?api_key={api_key}").json()
         
         if res.get("status") != 200 or res.get("result") is None:
@@ -43,16 +54,26 @@ def local_upload_to_vidara(file_path, final_title, folder_id, index):
         
         print(f"[{index}] جاري رفع الفيديو إلى Vidara...")
         with open(file_path, 'rb') as f:
-            # الإصلاح: التأكد من إرسال المتغير api_key في الـ data لربطه بحسابك
             response = requests.post(upload_api_url, files={'file': f}, data={'api_key': api_key}).json()
-            filecode = response.get('filecode')
-            if filecode:
-                print(f"[{index}] تم الرفع بنجاح! (Filecode: {filecode})")
-                time.sleep(1)
-                rename_video(api_key, filecode, final_title, index)
+            raw_filecode = response.get('filecode')
+            
+            if raw_filecode:
+                # --- الإصلاح العبقري هنا: استخراج الكود الصافي ---
+                # إذا كان المرجع عبارة عن رابط كامل، نقص الجزء الأخير منه فقط
+                if "vidara.to/e/" in raw_filecode:
+                    clean_filecode = raw_filecode.split("/")[-1]
+                else:
+                    clean_filecode = raw_filecode
+                    
+                print(f"[{index}] تم الرفع بنجاح! (الكود الصافي: {clean_filecode})")
+                
+                time.sleep(2) # تأخير لضمان تسجيل الملف
+                rename_video(api_key, clean_filecode, final_title, index)
+                
                 if folder_id:
-                    time.sleep(1)
-                    move_video(api_key, filecode, folder_id, index)
+                    time.sleep(2)
+                    move_video(api_key, clean_filecode, folder_id, index)
+                    
                 return True
             else:
                 print(f"[{index}] لم نتمكن من الحصول على Filecode: {response}")
