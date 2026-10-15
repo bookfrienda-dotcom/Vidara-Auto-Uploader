@@ -1,41 +1,46 @@
-name: 🔴 YouTube / FB to Vidara
+name: 🔴 Universal Uploader (YouTube, FB, ThisVid)
 
 on:
-  workflow_dispatch:
-    inputs:
-      video_links:
-        description: 'ضع روابط (يوتيوب، فيسبوك، تويتر...) هنا'
-        required: true
-        type: string
-      title_prefix:
-        description: 'الجملة أو الكلمة التي تريد إضافتها قبل اسم الفيديو (اختياري)'
-        required: false
-        type: string
-      folder_id:
-        description: 'رقم المجلد (Folder ID) للرفع إليه. (اتركه فارغاً للرئيسي)'
-        required: false
-        type: string
+workflow_dispatch:
+inputs:
+video_links:
+description: 'ضع روابط الفيديوهات هنا (افصل بينها بسطر جديد أو بفاصلة)'
+required: true
+type: string
+title_prefix:
+description: 'الجملة أو الكلمة التي تريد إضافتها قبل اسم الفيديو (اختياري)'
+required: false
+type: string
+start_serial:
+description: 'رقم البداية للتسلسل (مثال: 1). سيتم إضافته بعد البادئة. (اختياري)'
+required: false
+type: string
+folder_id:
+description: 'رقم المجلد (Folder ID) للرفع إليه. (اتركه فارغاً للرئيسي)'
+required: false
+type: string
 
 jobs:
-  transfer_videos:
-    runs-on: ubuntu-latest
+transfer_videos:
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+steps:
+  - name: Checkout Repository
+    uses: actions/checkout@v3
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+  - name: Setup Python
+    uses: actions/setup-python@v4
+    with:
+      python-version: '3.11'
 
-      - name: Install Dependencies
-        run: pip install -r requirements.txt
+  - name: Install Dependencies
+    run: pip install -r requirements.txt
 
-      - name: Run Transfer Script
-        env:
-          VIDEO_URLS: ${{ inputs.video_links }}
-          VIDARA_API_KEY: ${{ secrets.VIDARA_API_KEY }}
-          TITLE_PREFIX: ${{ inputs.title_prefix }}
-          FOLDER_ID: ${{ inputs.folder_id }}
-        run: python transfer.py
+  - name: Run Transfer Script
+    env:
+      VIDEO_URLS: ${{ inputs.video_links }}
+      VIDARA_API_KEY: ${{ secrets.VIDARA_API_KEY }}
+      TITLE_PREFIX: ${{ inputs.title_prefix }}
+      START_SERIAL: ${{ inputs.start_serial }}
+      FOLDER_ID: ${{ inputs.folder_id }}
+    run: python transfer.py
