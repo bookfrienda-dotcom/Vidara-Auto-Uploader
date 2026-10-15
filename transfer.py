@@ -8,26 +8,32 @@ import glob
 def clean_title(title):
     if not title:
         return "Unknown_Video"
-    clean = re.sub(r'[\\/*?:"<>|#]', "", title)
+    clean = re.sub(r'[\\/*?:"<>|#\n\r]', " ", title)
     return clean.strip()[:100]
 
 # --- دوال التعامل مع API الخاص بـ Vidara ---
 def rename_video(api_key, filecode, custom_title, index):
-    rename_endpoint = "https://api.vidara.so/v1/video/rename"
-    params = {'api_key': api_key, 'filecode': filecode, 'title': custom_title}
+    print(f"[{index}] جاري إعادة تسمية الفيديو إلى: {custom_title} ...")
     try:
-        requests.get(rename_endpoint, params=params)
-    except:
-        pass
+        res = requests.get("https://api.vidara.so/v1/video/rename", params={'api_key': api_key, 'filecode': filecode, 'title': custom_title}).json()
+        if res.get("status") == 200:
+             print(f"[{index}] تمت إعادة التسمية بنجاح.")
+        else:
+             print(f"[{index}] فشل إعادة التسمية: {res}")
+    except Exception as e: 
+        print(f"[{index}] خطأ أثناء التسمية: {e}")
 
 def move_video(api_key, filecode, folder_id, index):
     if not folder_id: return
-    move_endpoint = "https://api.vidara.so/v1/video/move"
-    params = {'api_key': api_key, 'filecode': filecode, 'fld_id': folder_id}
+    print(f"[{index}] جاري نقل الفيديو إلى المجلد المخصص...")
     try:
-        requests.get(move_endpoint, params=params)
-    except:
-        pass
+        res = requests.get("https://api.vidara.so/v1/video/move", params={'api_key': api_key, 'filecode': filecode, 'fld_id': folder_id}).json()
+        if res.get("status") == 200:
+             print(f"[{index}] تم النقل بنجاح.")
+        else:
+             print(f"[{index}] فشل النقل: {res}")
+    except Exception as e: 
+        print(f"[{index}] خطأ أثناء النقل: {e}")
 
 def get_upload_server(api_key):
     try:
@@ -61,21 +67,25 @@ def remote_upload_to_vidara(direct_url, final_title, folder_id, index):
         params = {'api_key': api_key, 'url': direct_url}
         response = requests.get(api_endpoint, params=params).json()
         if response.get("status") == 200:
-             filecode = response.get('data', {}).get('filecode')
-             print(f"[{index}] تم السحب السحابي بنجاح! (Filecode: {filecode})")
-             if filecode:
-                 time.sleep(1)
-                 rename_video(api_key, filecode, final_title, index)
+             raw_filecode = response.get('data', {}).get('filecode')
+             
+             if raw_filecode:
+                 # استخراج الكود الصافي تحسباً لاختلاف شكل الاستجابة
+                 clean_filecode = raw_filecode.split("/")[-1] if "vidara.to/e/" in raw_filecode else raw_filecode
+                 print(f"[{index}] تم السحب السحابي بنجاح! (Filecode: {clean_filecode})")
+                 
+                 time.sleep(2)
+                 rename_video(api_key, clean_filecode, final_title, index)
                  if folder_id:
-                     time.sleep(1)
-                     move_video(api_key, filecode, folder_id, index)
+                     time.sleep(2)
+                     move_video(api_key, clean_filecode, folder_id, index)
              return True
         else:
              return False
     except:
         return False
 
-# --- الطريقة الثانية: التحميل لجيت هب ثم الرفع (لتليجرام ويوتيوب وباقي المواقع) ---
+# --- الطريقة الثانية: التحميل لجيت هب ثم الرفع (لباقي المواقع مثل يوتيوب، thisvid، إلخ) ---
 def download_local_fallback(video_url, index):
     print(f"[{index}] جاري التحميل محلياً إلى سيرفر جيت هب...")
     out_tmpl = f'downloaded_video_{index}.%(ext)s'
@@ -87,7 +97,6 @@ def download_local_fallback(video_url, index):
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # هنا قمنا بإصلاح الخطأ الذي ظهر لك: لو لم يجد فيديو لن ينهار
             info = ydl.extract_info(video_url, download=True)
             if not info:
                 return None, None
@@ -116,14 +125,16 @@ def local_upload_to_vidara(file_path, final_title, folder_id, index):
             data = {'api_key': api_key, 'key': api_key}
             response = requests.post(upload_api_url, files=files, data=data).json()
             
-            filecode = response.get('filecode')
-            if filecode:
-                print(f"[{index}] تم الرفع والتخزين بنجاح! (Filecode: {filecode})")
-                time.sleep(1)
-                rename_video(api_key, filecode, final_title, index)
+            raw_filecode = response.get('filecode')
+            if raw_filecode:
+                clean_filecode = raw_filecode.split("/")[-1] if "vidara.to/e/" in raw_filecode else raw_filecode
+                print(f"[{index}] تم الرفع والتخزين بنجاح! (Filecode: {clean_filecode})")
+                
+                time.sleep(2)
+                rename_video(api_key, clean_filecode, final_title, index)
                 if folder_id:
-                    time.sleep(1)
-                    move_video(api_key, filecode, folder_id, index)
+                    time.sleep(2)
+                    move_video(api_key, clean_filecode, folder_id, index)
                 return True
             else:
                 print(f"[{index}] خطأ في استجابة الرفع: {response}")
@@ -132,11 +143,26 @@ def local_upload_to_vidara(file_path, final_title, folder_id, index):
         print(f"[{index}] حدث خطأ أثناء الرفع المحلي: {e}")
         return False
 
-# --- المحرك الأساسي للسكريبت ---
+# --- بناء العنوان النهائي ---
+def build_final_title(prefix, serial, original_title):
+    title_parts = []
+    if prefix:
+        title_parts.append(prefix)
+    if serial is not None:
+        title_parts.append(f"{serial:02d}")
+    title_parts.append(original_title)
+    return " - ".join(title_parts).strip()[:100]
+
+# --- المحرك الأساسي ---
 if __name__ == "__main__":
     urls_input = os.environ.get('VIDEO_URLS', '')
     prefix_input = os.environ.get('TITLE_PREFIX', '').strip()
     folder_id_input = os.environ.get('FOLDER_ID', '').strip()
+    
+    start_serial_str = os.environ.get('START_SERIAL', '').strip()
+    current_serial = None
+    if start_serial_str.isdigit():
+        current_serial = int(start_serial_str)
     
     urls = re.findall(r'(https?://[^\s,]+)', urls_input)
     urls = list(dict.fromkeys(urls))
@@ -150,32 +176,30 @@ if __name__ == "__main__":
     for idx, target_url in enumerate(urls, start=1):
         print(f"\n[{idx}] معالجة الرابط: {target_url}")
         
-        final_title = ""
-        is_telegram = 't.me' in target_url.lower()
         success = False
         
-        # 1. محاولة السحب السحابي أولاً (نتخطاها لو كان تليجرام لأنها تفشل معه)
-        if not is_telegram:
-            direct_url, title = None, None
-            if 'tiktok.com' in target_url.lower():
-                direct_url, title = get_tiktok_data(target_url, idx)
-            
+        # 1. محاولة السحب السحابي السريع (لتيك توك)
+        if 'tiktok.com' in target_url.lower():
+            direct_url, title = get_tiktok_data(target_url, idx)
             if direct_url and title:
-                final_title = f"{prefix_input} {title}" if prefix_input else title
-                final_title = final_title[:100]
+                final_title = build_final_title(prefix_input, current_serial, title)
                 success = remote_upload_to_vidara(direct_url, final_title, folder_id_input, idx)
+                if success and current_serial is not None:
+                    current_serial += 1
         
-        # 2. الخطة البديلة: التحميل لجيت هب والرفع (لتليجرام ولأي رابط يفشل سحابياً)
+        # 2. الخطة البديلة: التحميل لجيت هب والرفع (ليوتيوب، thisvid، وأي موقع يفشل سحابياً)
         if not success:
             print(f"[{idx}] استخدام طريقة (التحميل والرفع المباشر)...")
             local_file, title = download_local_fallback(target_url, idx)
             
             if local_file and title:
-                final_title = f"{prefix_input} {title}" if prefix_input else title
-                final_title = final_title[:100]
+                final_title = build_final_title(prefix_input, current_serial, title)
+                success = local_upload_to_vidara(local_file, final_title, folder_id_input, idx)
                 
-                local_upload_to_vidara(local_file, final_title, folder_id_input, idx)
-                os.remove(local_file) # تنظيف السيرفر
+                if success and current_serial is not None:
+                    current_serial += 1
+                    
+                os.remove(local_file) 
                 print(f"[{idx}] تم حذف الملف المؤقت من سيرفر جيت هب.")
             else:
                 print(f"[{idx}] تم تخطي الرابط بالكامل. (الرابط قد لا يحتوي على فيديو مدعوم)")
