@@ -3,11 +3,11 @@ import requests
 import yt_dlp
 import glob
 import re
+import time
 
 def download_tiktok_via_api(url, index):
     """دالة مخصصة لتنزيل تيك توك لتخطي الحظر وبدون علامة مائية"""
     print(f"[{index}] جاري استخراج رابط تيك توك المباشر لتخطي الحظر...")
-    # استخدام API مجاني لاستخراج الرابط المباشر
     api_url = f"https://www.tikwm.com/api/?url={url}"
     try:
         res = requests.get(api_url).json()
@@ -33,14 +33,12 @@ def download_tiktok_via_api(url, index):
 def download_video(video_url, index):
     print(f"\n[{index}] جاري بدء التحميل للرابط: {video_url}")
     
-    # إذا كان الرابط من تيك توك، نستخدم الدالة المخصصة لتجنب الحظر
     if 'tiktok.com' in video_url.lower():
         file_path = download_tiktok_via_api(video_url, index)
         if file_path:
             return file_path
         print(f"[{index}] سنحاول باستخدام yt-dlp كحل بديل...")
 
-    # إعدادات yt-dlp لباقي المواقع (يوتيوب، فيسبوك، إلخ)
     out_tmpl = f'downloaded_video_{index}.%(ext)s'
     ydl_opts = {
         'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
@@ -63,20 +61,45 @@ def download_video(video_url, index):
         print(f"[{index}] حدث خطأ أثناء التحميل: {e}")
         return None
 
+def get_upload_server(api_key):
+    """جلب رابط سيرفر الرفع الديناميكي من Vidara"""
+    try:
+        server_url = f"https://api.vidara.so/v1/upload/server?api_key={api_key}"
+        response = requests.get(server_url).json()
+        if response.get("status") == 200:
+            return response["result"]["upload_server"]
+        else:
+            print(f"فشل في جلب سيرفر الرفع: {response}")
+            return None
+    except Exception as e:
+        print(f"خطأ في جلب سيرفر الرفع: {e}")
+        return None
+
 def upload_to_vidara(file_path, index):
     api_key = os.environ.get('VIDARA_API_KEY')
-    upload_api_url = "https://vidara.to/api/upload" 
     
-    print(f"[{index}] جاري رفع الملف إلى موقع Vidara...")
+    # 1. جلب سيرفر الرفع أولاً
+    print(f"[{index}] جاري طلب سيرفر الرفع...")
+    upload_api_url = get_upload_server(api_key)
+    
+    if not upload_api_url:
+        print(f"[{index}] تم إلغاء الرفع لعدم توفر سيرفر.")
+        return
+
+    print(f"[{index}] جاري رفع الملف إلى سيرفر Vidara: {upload_api_url} ...")
     try:
         with open(file_path, 'rb') as f:
+            # المتغيرات المطلوبة للرفع كما هو موضح في توثيق Vidara
             files = {'file': f}
-            data = {'key': api_key} 
+            data = {'api_key': api_key} 
             
             response = requests.post(upload_api_url, files=files, data=data)
             
             print(f"[{index}] نتيجة الرفع السحابي:")
-            print(response.text)
+            try:
+                print(response.json())
+            except:
+                print(response.text)
             
     except Exception as e:
         print(f"[{index}] حدث خطأ أثناء الرفع: {e}")
@@ -88,10 +111,7 @@ if __name__ == "__main__":
         print("لم يتم إدخال أي روابط!")
         exit(1)
         
-    # الحل الذكي: استخراج جميع الروابط الصالحة برمجياً مهما كان النص المدخل متداخلاً
     urls = re.findall(r'(https?://[^\s,]+)', urls_input)
-    
-    # تنظيف القائمة من الروابط المكررة (إن وجدت)
     urls = list(dict.fromkeys(urls))
     
     if not urls:
@@ -105,6 +125,7 @@ if __name__ == "__main__":
         
         if local_file:
             upload_to_vidara(local_file, idx)
+            time.sleep(2) # تأخير بسيط بين الرفع لتجنب حظر الـ API
             os.remove(local_file) 
             print(f"[{idx}] تم حذف الملف من السيرفر بنجاح.")
         else:
